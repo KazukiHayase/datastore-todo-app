@@ -8,12 +8,6 @@ services:
     command: air -c .air.toml
     ports:
       - "8888:8888"
-    healthcheck:
-      test: "curl localhost:8888/healthz"
-      interval: "2s"
-      timeout: "1s"
-      retries: 20
-      start_period: "10s"
     volumes:
       - type: bind
         source: ./
@@ -21,10 +15,13 @@ services:
       - type: volume
         source: modules
         target: /go/pkg/mod
-      # - $HOME/.gcloud/buysell-technologies/key.json:/key.json:ro
+      - ./key.json:/key.json:ro
     environment:
       ENV: local
       TZ: Asia/Tokyo
+      GCP_PROJECT_ID: "${GCP_PROJECT_ID}"
+      GCP_REGION: asia-northeast1
+      GOOGLE_APPLICATION_CREDENTIALS: /key.json
 volumes:
   app:
   modules:

@@ -1,36 +1,37 @@
 package main
 
 import (
+	"log"
+
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/KazukiHayase/datastore-todo-app/config"
 	"github.com/KazukiHayase/datastore-todo-app/graph/generated"
 	"github.com/KazukiHayase/datastore-todo-app/graph/resolver"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	r := gin.New()
-	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/healthz"}}))
-	r.Use(gin.Recovery())
+	config, err := config.Environ()
+	if err != nil {
+		log.Fatalf("環境変数の設定に失敗しました: %v\n", err)
+	}
 
-	r.POST("/graphql", graphqlHandler())
-	r.GET("/", playgroundHandler())
-	r.GET("/healthz", func(c *gin.Context) {
-		c.String(200, "I'm healthy")
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(
+		generated.Config{
+			Resolvers: &resolver.Resolver{
+				Config: config,
+			},
+		},
+	))
+
+	r := gin.Default()
+	r.POST("/graphql", func(c *gin.Context) {
+		srv.ServeHTTP(c.Writer, c.Request)
 	})
+	r.GET("/", playgroundHandler())
 
 	r.Run(":8888")
-}
-
-// Defining the Graphql handler
-func graphqlHandler() gin.HandlerFunc {
-	// NewExecutableSchema and Config are in the generated.go file
-	// Resolver is in the resolver.go file
-	h := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver.Resolver{}}))
-
-	return func(c *gin.Context) {
-		h.ServeHTTP(c.Writer, c.Request)
-	}
 }
 
 // Defining the Playground handler
