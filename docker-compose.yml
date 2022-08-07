@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: local.Dockerfile
+    tty: true
+    command: air -c .air.toml
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: "curl localhost:8888/healthz"
+      interval: "2s"
+      timeout: "1s"
+      retries: 20
+      start_period: "10s"
+    volumes:
+      - type: bind
+        source: ./
+        target: /go/src
+      - type: volume
+        source: modules
+        target: /go/pkg/mod
+      # - $HOME/.gcloud/buysell-technologies/key.json:/key.json:ro
+    environment:
+      ENV: local
+      TZ: Asia/Tokyo
+volumes:
+  app:
+  modules:
+
