@@ -6,7 +6,6 @@ package resolver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/KazukiHayase/datastore-todo-app/graph/model"
 )
 
-// 本当はgqlgenのmodelと共通で使用するようにするべき
 type Todo struct {
 	Text      string    `datastore:"text"`
 	Done      bool      `datastore:"done"`
@@ -35,7 +33,7 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	defer dsClient.Close()
 
 	var user User
-	userKey := datastore.NameKey("Todo", input.UserID, nil)
+	userKey := datastore.NameKey("User", input.UserID, nil)
 	err = dsClient.Get(ctx, userKey, &user)
 	if err != nil {
 		if err == datastore.ErrNoSuchEntity {
@@ -67,8 +65,30 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 }
 
 // Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *queryResolver) Todos(ctx context.Context) ([]model.Todo, error) {
+	dsClient, err := datastore.NewClient(ctx, r.Config.GCP.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer dsClient.Close()
+
+	var todos []Todo
+	keys, err := dsClient.GetAll(ctx, datastore.NewQuery("Todo"), &todos)
+	if err != nil {
+		return []model.Todo{}, err
+	}
+
+	var gqlTodos []model.Todo
+	for i, key := range keys {
+		todo := todos[i]
+		gqlTodos = append(gqlTodos, model.Todo{
+			ID:   strconv.Itoa(int(key.ID)),
+			Text: todo.Text,
+			Done: todo.Done,
+		})
+	}
+
+	return gqlTodos, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
