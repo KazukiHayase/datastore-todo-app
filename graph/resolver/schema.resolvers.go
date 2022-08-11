@@ -5,6 +5,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,6 +15,17 @@ import (
 	"github.com/KazukiHayase/datastore-todo-app/graph/model"
 )
 
+// 本当はgqlgenのmodelと共通で使用するようにするべき
+type Todo struct {
+	Text      string    `datastore:"text"`
+	Done      bool      `datastore:"done"`
+	CreatedAt time.Time `datastore:"createdAt"`
+}
+
+type User struct {
+	Name string `datastore:"name"`
+}
+
 // CreateTodo is the resolver for the createTodo field.
 func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
 	dsClient, err := datastore.NewClient(ctx, r.Config.GCP.ProjectID)
@@ -22,16 +34,19 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	}
 	defer dsClient.Close()
 
-	// 本当はgqlgenのmodelと共通で使用するようにしたい
-	type Todo struct {
-		id        int64
-		Text      string    `datastore:"text"`
-		Done      bool      `datastore:"done"`
-		CreatedAt time.Time `datastore:"createdAt"`
+	var user User
+	userKey := datastore.NameKey("Todo", input.UserID, nil)
+	err = dsClient.Get(ctx, userKey, &user)
+	if err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, errors.New("指定されたユーザーは登録されていません")
+		} else {
+			return nil, err
+		}
 	}
 
-	key := datastore.IncompleteKey("Todo", nil)
-	newKey, err := dsClient.Put(ctx, key, &Todo{
+	todoKey := datastore.IncompleteKey("Todo", userKey)
+	newTodoKey, err := dsClient.Put(ctx, todoKey, &Todo{
 		Text:      input.Text,
 		Done:      false,
 		CreatedAt: time.Now(),
@@ -41,13 +56,12 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	}
 
 	return &model.Todo{
-		ID:   strconv.Itoa(int(newKey.ID)),
+		ID:   strconv.Itoa(int(newTodoKey.ID)),
 		Text: input.Text,
 		Done: false,
-		// TODO: 仮
 		User: &model.User{
-			ID:   "UserID",
-			Name: "Name",
+			ID:   userKey.Name,
+			Name: user.Name,
 		},
 	}, nil
 }
